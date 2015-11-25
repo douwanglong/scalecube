@@ -22,8 +22,7 @@ public class ClusterNodeA {
    * Main method.
    */
   public static void main(String[] args) {
-    // start cluster node that listen on port 3000
-    Futures.addCallback(Cluster.newInstance(3000).join(), new FutureCallback<ICluster>() {
+    Futures.addCallback(Cluster.join(), new FutureCallback<ICluster>() {
       @Override
       public void onSuccess(ICluster cluster) {
         cluster.gossip().listen().subscribe(new Action1<Message>() {
@@ -36,7 +35,7 @@ public class ClusterNodeA {
       }
 
       @Override
-      public void onFailure(Throwable throwable) {
+      public void onFailure(Throwable ignore) {
         // do nothing
       }
     });

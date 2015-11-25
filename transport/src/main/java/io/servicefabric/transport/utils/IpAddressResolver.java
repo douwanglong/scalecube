@@ -3,10 +3,8 @@ package io.servicefabric.transport.utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.UnknownHostException;
+import java.io.IOException;
+import java.net.*;
 import java.util.Enumeration;
 
 /**
@@ -38,7 +36,7 @@ public class IpAddressResolver {
       LOGGER.error("Socket error during resolving IP address", e);
     }
 
-    while (netInterfaces.hasMoreElements()) {
+    while (netInterfaces != null && netInterfaces.hasMoreElements()) {
       NetworkInterface ni = netInterfaces.nextElement();
       Enumeration<InetAddress> address = ni.getInetAddresses();
       while (address.hasMoreElements()) {
@@ -51,6 +49,41 @@ public class IpAddressResolver {
       }
     }
     return InetAddress.getLocalHost();
+  }
+
+
+  /**
+   * Checks to see if a specific port is available.
+   *
+   * @param port the port to check for availability
+   */
+    public static boolean available(int port) {
+
+    ServerSocket ss = null;
+    DatagramSocket ds = null;
+    try {
+      ss = new ServerSocket(port);
+      ss.setReuseAddress(true);
+      ds = new DatagramSocket(port);
+      ds.setReuseAddress(true);
+      return true;
+    } catch (IOException ignore) {
+      //ignore
+    } finally {
+      if (ds != null) {
+        ds.close();
+      }
+
+      if (ss != null) {
+        try {
+          ss.close();
+        } catch (IOException e) {
+                /* should not be thrown */
+        }
+      }
+    }
+
+    return false;
   }
 
 }

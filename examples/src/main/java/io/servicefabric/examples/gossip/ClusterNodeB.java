@@ -22,14 +22,14 @@ public class ClusterNodeB {
    */
   public static void main(String[] args) {
     // start cluster node that listen on port 3001 and point to node A as seed node
-    Futures.addCallback(Cluster.newInstance(3001, "localhost:3000").join(), new FutureCallback<ICluster>() {
+    Futures.addCallback(Cluster.join(3001, "localhost:3000"), new FutureCallback<ICluster>() {
       @Override
       public void onSuccess(ICluster cluster) {
         cluster.gossip().spread(new Message(new Greetings("Greetings from ClusterMember B")));
       }
 
       @Override
-      public void onFailure(Throwable throwable) {
+      public void onFailure(Throwable ignore) {
         // do nothing
       }
     });

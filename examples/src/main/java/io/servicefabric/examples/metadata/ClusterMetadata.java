@@ -37,7 +37,7 @@ public class ClusterMetadata {
    */
   public static void main(String[] args) throws Exception {
 
-    ICluster seedCluster = Cluster.newInstance(3000).joinAwait();
+    ICluster seedCluster = Cluster.joinAwait();
 
     // define the custom configuration meta data. and we add alias field.
     Map<String, String> metadata = new HashMap<>();
@@ -47,7 +47,7 @@ public class ClusterMetadata {
             .metadata(metadata);
 
     // configure cluster 2 with the metadata and attach cluster 2 as Joe and join seed
-    ICluster joeCluster = Cluster.newInstance(config).joinAwait();
+    ICluster joeCluster = Cluster.joinAwait(config);
 
     // filter and subscribe on hello/joe and print the welcome message.
     joeCluster.listen().filter(MESSAGE_PREDICATE).subscribe(new Action1<Message>() {

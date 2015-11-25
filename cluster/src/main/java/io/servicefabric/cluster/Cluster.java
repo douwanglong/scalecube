@@ -2,7 +2,10 @@ package io.servicefabric.cluster;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Throwables.getRootCause;
+import static com.google.common.util.concurrent.Futures.*;
 
+import com.google.common.util.concurrent.*;
 import io.servicefabric.cluster.fdetector.FailureDetector;
 import io.servicefabric.cluster.gossip.GossipProtocol;
 import io.servicefabric.cluster.gossip.IGossipProtocol;
@@ -13,23 +16,22 @@ import io.servicefabric.transport.TransportEndpoint;
 
 import com.google.common.base.Function;
 import com.google.common.base.Throwables;
-import com.google.common.util.concurrent.AsyncFunction;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 
+import io.servicefabric.transport.utils.IpAddressResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import rx.Observable;
 import rx.schedulers.Schedulers;
 
+import java.net.BindException;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -37,6 +39,7 @@ import javax.annotation.Nullable;
  * 
  * @author Anton Kharenko
  */
+
 public final class Cluster implements ICluster {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(Cluster.class);
@@ -105,24 +108,64 @@ public final class Cluster implements ICluster {
     LOGGER.info("Cluster instance '{}' created with configuration: {}", memberId, config);
   }
 
-  public static Cluster newInstance() {
-    return newInstance(ClusterConfiguration.newInstance());
+  public static ICluster joinAwait() {
+    return joinAwait(ClusterConfiguration.newInstance());
   }
 
-  public static Cluster newInstance(int port) {
-    return newInstance(ClusterConfiguration.newInstance().port(port));
+  public static ICluster joinAwait(int port) {
+    return joinAwait(ClusterConfiguration.newInstance().port(port));
   }
 
-  public static Cluster newInstance(int port, String seedMembers) {
-    return newInstance(ClusterConfiguration.newInstance().port(port).seedMembers(seedMembers));
+  public static ICluster joinAwait(int port, String seedMembers) {
+    return joinAwait(ClusterConfiguration.newInstance().port(port).seedMembers(seedMembers));
+  }
+  public static ICluster joinAwait(String seedMembers) {
+    return joinAwait(ClusterConfiguration.newInstance().seedMembers(seedMembers));
   }
 
-  public static Cluster newInstance(String memberId, int port, String seedMembers) {
-    return newInstance(ClusterConfiguration.newInstance().memberId(memberId).port(port).seedMembers(seedMembers));
+  public static ICluster joinAwait(String memberId, int port, String seedMembers) {
+    return joinAwait(ClusterConfiguration.newInstance().memberId(memberId).port(port).seedMembers(seedMembers));
   }
 
-  public static Cluster newInstance(ClusterConfiguration config) {
-    return new Cluster(config);
+  public static ICluster joinAwait(ClusterConfiguration config) {
+    return new Cluster(config).joinAwait0();
+  }
+
+
+  public static ListenableFuture<ICluster> join() {
+    return join(ClusterConfiguration.newInstance());
+  }
+
+  public static ListenableFuture<ICluster> join(int port) {
+    return join(ClusterConfiguration.newInstance().port(port));
+  }
+
+  public static ListenableFuture<ICluster> join(int port, String seedMembers) {
+    return join(ClusterConfiguration.newInstance().port(port).seedMembers(seedMembers));
+  }
+  public static ListenableFuture<ICluster> join(String seedMembers) {
+    return join(ClusterConfiguration.newInstance().seedMembers(seedMembers));
+  }
+
+  public static ListenableFuture<ICluster> join(String memberId, int port, String seedMembers) {
+    return join(ClusterConfiguration.newInstance().memberId(memberId).port(port).seedMembers(seedMembers));
+  }
+
+  public static ListenableFuture<ICluster> join(final ClusterConfiguration config) {
+    final ListenableFuture<ICluster> future = new Cluster(config).join0();
+    return withFallback(future, new FutureFallback<ICluster>() {
+      @Override
+      public ListenableFuture<ICluster> create(@Nonnull Throwable throwable) throws Exception {
+        if(throwable instanceof BindException){
+          int port = config.port + 1;
+          while(!IpAddressResolver.available(port)){
+            port++;
+          }
+          return join(port);
+        }
+        return Futures.immediateFailedFuture(throwable);
+      }
+    });
   }
 
   @Override
@@ -155,12 +198,11 @@ public final class Cluster implements ICluster {
     return clusterMembership;
   }
 
-  @Override
-  public ListenableFuture<ICluster> join() {
+   private ListenableFuture<ICluster> join0() {
     updateClusterState(State.INSTANTIATED, State.JOINING);
     LOGGER.info("Cluster instance '{}' joining seed members: {}", memberId, config.seedMembers);
     ListenableFuture<Void> transportFuture = transport.start();
-    ListenableFuture<Void> clusterFuture = Futures.transform(transportFuture, new AsyncFunction<Void, Void>() {
+    ListenableFuture<Void> clusterFuture = transform(transportFuture, new AsyncFunction<Void, Void>() {
       @Override
       public ListenableFuture<Void> apply(@Nullable Void param) throws Exception {
         failureDetector.start();
@@ -168,7 +210,8 @@ public final class Cluster implements ICluster {
         return clusterMembership.start();
       }
     });
-    return Futures.transform(clusterFuture, new Function<Void, ICluster>() {
+
+    return transform(clusterFuture, new Function<Void, ICluster>() {
       @Override
       public ICluster apply(@Nullable Void param) {
         updateClusterState(State.JOINING, State.JOINED);
@@ -180,12 +223,11 @@ public final class Cluster implements ICluster {
 
   }
 
-  @Override
-  public ICluster joinAwait() {
+  private ICluster joinAwait0() {
     try {
-      return join().get();
+      return join0().get();
     } catch (Exception e) {
-      throw Throwables.propagate(Throwables.getRootCause(e));
+      throw Throwables.propagate(getRootCause(e));
     }
   }
 
@@ -212,7 +254,7 @@ public final class Cluster implements ICluster {
     }, delay, TimeUnit.MILLISECONDS);
 
     // Update cluster state to terminal state
-    return Futures.transform(transportStoppedFuture, new Function<Void, Void>() {
+    return transform(transportStoppedFuture, new Function<Void, Void>() {
       @Nullable
       @Override
       public Void apply(Void input) {

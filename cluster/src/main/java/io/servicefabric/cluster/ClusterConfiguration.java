@@ -21,9 +21,10 @@ public class ClusterConfiguration {
 
   String memberId = null;
   String seedMembers = "";
-  int port = DEFAULT_PORT;
   Map<String, String> metadata = new HashMap<>();
   TransportSettings transportSettings = TransportSettings.DEFAULT;
+
+  int port = DEFAULT_PORT;
   ClusterMembershipSettings clusterMembershipSettings = DEFAULT_CLUSTER_MEMBERSHIP_SETTINGS;
   FailureDetectorSettings failureDetectorSettings = DEFAULT_FAILURE_DETECTOR_SETTINGS;
   GossipProtocolSettings gossipProtocolSettings = DEFAULT_GOSSIP_PROTOCOL_SETTINGS;

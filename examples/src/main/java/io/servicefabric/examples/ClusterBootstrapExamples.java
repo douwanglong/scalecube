@@ -18,16 +18,16 @@ public class ClusterBootstrapExamples {
    */
   public static void main(String[] args) throws Exception {
     // Start seed members
-    ICluster cluster1 = Cluster.newInstance().joinAwait();
-    ICluster cluster2 = Cluster.newInstance(4001).joinAwait();
+    ICluster cluster1 = Cluster.joinAwait();
+    ICluster cluster2 = Cluster.joinAwait();
 
     String seedMembers = "localhost:" + ClusterConfiguration.DEFAULT_PORT + ", localhost:4001";
 
     // Start another member
-    ICluster cluster3 = Cluster.newInstance(4002, seedMembers).joinAwait();
+    ICluster cluster3 = Cluster.joinAwait(seedMembers);
 
     // Start cool member
-    ICluster cluster4 = Cluster.newInstance("Cool member", 4003, seedMembers).joinAwait();
+    ICluster cluster4 = Cluster.joinAwait("Cool member", 4003, seedMembers);
 
     // Start another cool member with some metadata
     Map<String, String> metadata = new HashMap<>();
@@ -36,7 +36,7 @@ public class ClusterBootstrapExamples {
     ClusterConfiguration config5 =
         ClusterConfiguration.newInstance().port(4004).seedMembers(seedMembers).memberId("Another cool member")
             .metadata(metadata);
-    ICluster cluster5 = Cluster.newInstance(config5).joinAwait();
+    ICluster cluster5 = Cluster.joinAwait(config5);
 
     // Alone cluster member - trying to join, but always ignored :(
     ClusterConfiguration.ClusterMembershipSettings membershipSettings7 =
@@ -45,7 +45,7 @@ public class ClusterBootstrapExamples {
     ClusterConfiguration config7 =
         ClusterConfiguration.newInstance().port(4006).seedMembers(seedMembers)
             .clusterMembershipSettings(membershipSettings7);
-    ICluster cluster7 = Cluster.newInstance(config7).joinAwait();
+    ICluster cluster7 = Cluster.joinAwait(config7);
   }
 
 }
